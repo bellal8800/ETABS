@@ -67,11 +67,15 @@ function assignTypeChange(){let t=document.getElementById('aot').value,u=documen
 function assignLoad(){if(selected===null){closeDlg();status('Select an object before assigning a load');return}let t=document.getElementById('aot').value,p=document.getElementById('ap').value,v=+document.getElementById('av').value||0;if(t==='joint')model.loads.push({type:'joint',joint:selected,pattern:p,value:v});else if(t==='frame'){let fi=selectedType==='frame'?selected:null;if(fi===null){closeDlg();status('Select a beam/frame first');return}model.loads.push({type:'frame',frame:fi,pattern:p,value:v})}else{let si=selectedType==='slab'?selected:null;if(si===null){closeDlg();status('Select a slab first');return}model.loads.push({type:'slab',slab:si,pattern:p,value:v})}closeDlg();status(t==='frame'?'Beam uniform load assigned':t==='slab'?'Slab area load assigned':'Joint load assigned')}
 function storyMassMatrix(){
  let N=model.joints.length*6,M=Array(N).fill(0),g=9.80665;
- let area=Math.max(0,(Math.max(...model.gridX)-Math.min(...model.gridX))*(Math.max(...model.gridY)-Math.min(...model.gridY)));
+ let fullArea=Math.max(0,(Math.max(...model.gridX)-Math.min(...model.gridX))*(Math.max(...model.gridY)-Math.min(...model.gridY)));
  model.stories.filter(st=>st.z>0).forEach(st=>{
-  let dead=0,live=0;
-  model.slabs.forEach(sl=>{let mat=model.materials.find(m=>m.name===sl.material)||model.materials[0];dead+=area*(sl.thickness||0)*(mat.unitWeight||24)});
-  model.loads.forEach(l=>{if(l.type!=='slab')return;let sl=model.slabObjects[l.slab];if(!sl||!sl.points||!sl.points.length||Math.abs(sl.points[0][2]-st.z)>1e-6)return;let p=model.loadPatterns.find(q=>q.name===l.pattern),v=+l.value||0;if(p&&p.type==='Dead')dead+=v*area;if(p&&p.type==='Live')live+=v*area});
+  let dead=0,live=0,storySlabs=model.slabObjects.filter(sl=>sl.points&&sl.points.length&&Math.abs(sl.points[0][2]-st.z)<1e-6);
+  if(storySlabs.length){
+   storySlabs.forEach(sl=>{let xs=sl.points.map(p=>p[0]),ys=sl.points.map(p=>p[1]),a=Math.max(0,(Math.max(...xs)-Math.min(...xs))*(Math.max(...ys)-Math.min(...ys))),sec=model.slabs.find(q=>q.name===sl.section),mat=model.materials.find(m=>m.name===sec?.material)||model.materials[0];dead+=a*(sec?.thickness||0)*(mat?.unitWeight||24)});
+  }else{
+   model.slabs.forEach(sl=>{let mat=model.materials.find(m=>m.name===sl.material)||model.materials[0];dead+=fullArea*(sl.thickness||0)*(mat.unitWeight||24)});
+  }
+  model.loads.forEach(l=>{if(l.type!=='slab')return;let sl=model.slabObjects[l.slab];if(!sl||!sl.points||!sl.points.length||Math.abs(sl.points[0][2]-st.z)>1e-6)return;let p=model.loadPatterns.find(q=>q.name===l.pattern),v=+l.value||0,xs=sl.points.map(q=>q[0]),ys=sl.points.map(q=>q[1]),a=Math.max(0,(Math.max(...xs)-Math.min(...xs))*(Math.max(...ys)-Math.min(...ys)));if(p&&p.type==='Dead')dead+=v*a;if(p&&p.type==='Live')live+=v*a});
   let mass=(dead*(model.massSource.dead||0)+live*(model.massSource.live||0))/g,ids=model.joints.map((j,i)=>j.z===st.z?i:-1).filter(i=>i>=0);
   ids.forEach(i=>{M[i*6]=mass/Math.max(1,ids.length);M[i*6+1]=M[i*6]});
  });
